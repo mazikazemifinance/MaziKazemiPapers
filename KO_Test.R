@@ -11,6 +11,7 @@ KO_Test <- function(Y, X){
   
   # Output:
   # p: Estimated rank of the beta matrix
+  # pvalsR: p-values for sequential rank test (Cragg and Donald, 1997)
   # KO: A Kx1 vector whose elements are either ID or NoID, indicating whether a
   #     given factor risk-premium is identified according to the KO test
   # pvals: A Kx1 vector of p-values for the KO test
@@ -57,6 +58,7 @@ KO_Test <- function(Y, X){
   # Sorted eigenvalues
   Ei <- sort(eigen(PsiMat)$values)
   
+  pvalR <- matrix(NA, nrow = K+1)
   # Loop over eigenvalues
   for (p in 0:K){
     
@@ -68,7 +70,7 @@ KO_Test <- function(Y, X){
       Obj <- 0
       
     }
-    
+    pvalR[p+1] <- pchisq(Obj,(N-p)*(K-p), lower.tail = F)
     # Set p to first instance where chi-square is not rejected
     if (pchisq(Obj,(N-p)*(K-p), lower.tail = F) > 0.05){
       break
@@ -96,24 +98,12 @@ KO_Test <- function(Y, X){
     # Equality constraints
     eqcon_fun <- function(u){
       
-      # Make vectorized u into matrix
+      # Make vectorized u in matrix
       U <- matrix(u, nrow = K-1, ncol = d)
+      U0 <- matrix(0, K, d)
+      U0[-pos,] <- U
+      U <-U0
       
-      # If testing the first position
-      if (pos == 1){
-        # Place row of zeros on top (where the t(U) * e =0)
-        U <- rbind(rep(0,d),U)
-        # If testing last position
-      } else if (pos == K){
-        # Put row of 0s at the end
-        U <- rbind(U, rep(0, d))
-        # If not first or last position in test
-      } else {
-        # Place row of zeros where position would be
-        U <- rbind(U[1:(pos-1),],
-                   rep(0, d),
-                   U[(pos):(K-1),])
-      }
       
       
       
@@ -132,21 +122,9 @@ KO_Test <- function(Y, X){
     optfun <- function(u){
       # Make vectorized u in matrix
       U <- matrix(u, nrow = K-1, ncol = d)
-      # If testing the first position
-      if (pos == 1){
-        # Place row of zeros on top (where the t(U) * e =0)
-        U <- rbind(rep(0,d),U)
-        # If testing last position
-      } else if (pos == K){
-        # Put row of 0s at the end
-        U <- rbind(U, rep(0, d))
-        # If not first or last position in test
-      } else {
-        # Place row of zeros where position would be
-        U <- rbind(U[1:(pos-1),],
-                   rep(0, d),
-                   U[(pos):(K-1),])
-      }
+      U0 <- matrix(0, K, d)
+      U0[-pos,] <- U
+      U <-U0
       
       
       # Diag matrix NxN
@@ -158,35 +136,18 @@ KO_Test <- function(Y, X){
       return(Out)
     }
     #
-    
     # Create identity matrix with 0 row. Lower triangular (including diag)
     # should be the set of constraints
     Z <- matrix(0, K-1, d)
     diag(Z) <- 1
-    # This is first equality constraint requirement
-    # If testing the first position
-    if (pos == 1){
-      # Place row of zeros on top (where the t(U) * e =0)
-      Z <- rbind(rep(0,d),Z)
-      # If testing last position
-    } else if (pos == K){
-      # Put row of 0s at the end
-      Z <- rbind(Z, rep(0, d))
-      # If not first or last position in test
-    } else {
-      # Place row of zeros where position would be
-      Z <- rbind(Z[1:(pos-1),],
-                 rep(0, d),
-                 Z[(pos):(K-1),])
-    }
+    Z2 <- matrix(0,K,d)
+    Z2[-pos,]<- Z
+    Z <- Z2
     
-    
-    # Z'Z
     ZZ <- t(Z) %*% Z
+    #Z1Sol <- diag(ZZ)[lower.tri(diag(ZZ), TRUE)]
     
-    # Lower triangular of Z'Z is what lower triangular of U'U should equal 
     Z1Sol <- ZZ[lower.tri(ZZ, TRUE)]
-    
     # Pick random starting point
     Start <- rnorm((K-1)*d)
     
@@ -206,5 +167,5 @@ KO_Test <- function(Y, X){
    KO <- "AllID"
    pval <- NA
   }
-  return(list(p,KO,pval))
+  return(list(p,pvalR,KO,pval))
 }
