@@ -5,7 +5,7 @@ KO_Test <- function(Y, X){
   
   # Inputs:
   # Y: A TxN matrix of asset excess returns
-  # X: A TxK matrix of factor realizations
+  # X: A TxK matrix of factor realizations (No constant vector)
   
   # NOTE: No NAs are allowed. Panels must be balanced.
   
@@ -78,7 +78,7 @@ KO_Test <- function(Y, X){
     
   }
   
-  
+  if (p > 0){
   if (p<K){
   ###################### Main Test #################
   
@@ -91,6 +91,30 @@ KO_Test <- function(Y, X){
   # Initialize
   KO <- matrix(NA, nrow = K)
   pval <- matrix(NA, nrow = K)
+  
+  # if K = 2 and one-dim rank def., can plug in [1,0] and [0,1] directly into
+  # Wald statistic (no optimization required)
+  if (d == 1 & K == 2){
+    for (pos in 1:K){
+      U <- matrix(1, K, d)
+      
+      U[pos]<-0
+      
+      # Diag matrix NxN
+      IN <- diag(N)
+      # Impled CovMat of U
+      OmegaU<- (IN %x% t(U)) %*% Omega_R %*% (IN %x% U)
+      
+      Out <-Time* t(vec(t(Betas %*% U))) %*% ginv(OmegaU) %*% vec(t(Betas %*% U))
+      # Null: Is ID
+      if (pchisq(Out,N*d, lower.tail = F) > 0.05){
+        KO[pos] <- "ID"
+      } else {
+        KO[pos] <- "NoID"
+      }
+      pval[pos] <- pchisq(Out,N*d, lower.tail = F)
+    }
+  } else {
   
   # Loop over each factor
   for (pos in 1:K){
@@ -163,9 +187,13 @@ KO_Test <- function(Y, X){
     pval[pos] <- pchisq(Sol$values[length(Sol$values)],N*d, lower.tail = F)
     
   }
+  }
   } else {
    KO <- "AllID"
    pval <- NA
+  }} else {
+    KO <- "RANK 0"
+    pval <- "RANK 0"
   }
   return(list(p,pvalR,KO,pval))
 }
